@@ -1,0 +1,82 @@
+#define function sort(uint256[]) pure returns(uint256[])
+
+#define macro SORT(mem_ptr) = takes(0) returns(0) {
+  // termination indicator
+  0x00                    // [0]
+  <mem_ptr> mload         // [length, 0]
+  <mem_ptr> 0x20 add      // [start, length, 0]
+  dup1 swap2 0x20         // [32, length, start, start, 0]
+  mul add                 // [32*length + start = end, start, 0]
+  0x20 swap1 sub          // [end, start, 0]
+
+  start:
+    // break if range size less than 2
+    dup1 dup3 0x20 add    // [start+32, end, end, start, 0]
+    gt end jumpi          // [end, start, 0]
+
+    // use the end value as the pivot
+    dup1 mload            // [pivot, end, start, 0]
+      
+    // initiate i, j pointers at start
+    dup3 dup1             // [j, i, pivot, end , start, 0]
+
+  continue:
+    // if arr[j] less than or equal pivot swap i, j
+    dup1 mload            // [arr[j], j, i, pivot, end, start, 0]
+    dup4 lt               // [pivot < arr[j], j, i, pivot, end, start, 0]
+    skip jumpi            // [j, i, pivot, end, start, 0]
+    
+    // swap i and j
+    dup2 mload            // [arr[i], j, i, pivot, end, start, 0]
+    dup2 mload            // [arr[j], arr[i], j, i, pivot, end, start, 0]
+    dup4 mstore           // [arr[i], j, i, pivot, end, start, 0]
+    dup2 mstore           // [j, i, pivot, end, start, 0]
+    
+    // increment i
+    swap1 0x20 add swap1  // [j, i+32, pivot, end, start, 0]
+  
+  skip:
+    // increment j
+    0x20 add              // [j+32, i, pivot, end, start, 0]
+
+    // continue iteration if j is not at end
+    dup4 dup2 lt          // [j < end, j, i, pivot, end, start, 0]
+    continue jumpi        // [j, i, pivot, end, start, 0]
+
+    // swap pivot with i
+    dup2 mload swap1      // [j arr[i], i, pivot, end, start, 0]
+    mstore                // [i, pivot, end, start, 0]  
+    swap1 dup2            // [i, pivot, i=mid, end, start, 0]
+    mstore                // [mid, end, start, 0]
+
+    // recurse left and right range
+    dup1 0x20 add         // [mid+32, mid, end, start, 0]
+    swap3                 // [start, mid, end, mid+32, 0]
+    swap1 0x20 swap1 sub  // [mid-32, start, end, mid+32, 0]
+    start jump      
+    
+  end:
+    // if stack is not at termination enter next range
+    pop pop               // [0]
+    0x00 dup2             // [0, 0, 0]
+    gt start jumpi        // [false, 0]
+    pop                   // []
+}
+
+#define macro SORT_WRAPPER() = takes(0) returns (0) {
+    0x04 calldatasize sub // [calldatasize-4 = arraysize]                     
+    dup1 0x04 0x00        // [0, 4, arraysize, arraysize]
+    calldatacopy          // [arraysize]
+
+    SORT(0x20)            // [arraysize]
+    0x00 return
+}
+
+#define macro MAIN() = takes(0) returns (0) {
+    0x00 calldataload 0xE0 shr
+    __FUNC_SIG(sort) eq sort jumpi
+    0x00 0x00 revert
+
+    sort:
+        SORT_WRAPPER()
+}
